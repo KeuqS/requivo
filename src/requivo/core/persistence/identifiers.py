@@ -54,7 +54,8 @@ def derive_slug(text: str) -> str:
     # A request title names the session; provenance below it does not (#774).
     title = text
     fence = ""
-    for line in text.splitlines():
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
         if fence:
             closing = re.fullmatch(r" {0,3}(`{3,}|~{3,})[ \t]*", line)
             if closing and closing[1][0] == fence[0] and len(closing[1]) >= len(fence):
@@ -73,6 +74,14 @@ def derive_slug(text: str) -> str:
             if candidate:
                 title = candidate
                 break
+        setext = (
+            index + 1 < len(lines)
+            and line.strip(" \t")
+            and re.fullmatch(r" {0,3}(=+|-+)[ \t]*", lines[index + 1])
+        )
+        if setext:
+            title = line.strip(" \t")
+            break
     folded = unicodedata.normalize(
         "NFKD", title.lower().translate(_LATIN_EXPANSIONS)).encode("ascii", "ignore").decode("ascii")
     tokens = re.findall(r"[a-z0-9]+", folded)
