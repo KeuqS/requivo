@@ -51,8 +51,30 @@ def derive_slug(text: str) -> str:
     five tokens, in that order (#245); below two survivors the unfiltered words are used. A non-Latin
     request lands on `discovery-<hash>`: `test_a_non_latin_request_still_derives_the_documented_discovery_fallback`.
     A session on disk keeps its name; the alphabet is `[a-z0-9-]`."""
+    # A request title names the session; provenance below it does not (#774).
+    title = text
+    fence = ""
+    for line in text.splitlines():
+        if fence:
+            closing = re.fullmatch(r" {0,3}(`{3,}|~{3,})[ \t]*", line)
+            if closing and closing[1][0] == fence[0] and len(closing[1]) >= len(fence):
+                fence = ""
+            continue
+        opening = re.match(r" {0,3}(`{3,}|~{3,})(.*)", line)
+        if opening and (opening[1][0] != "`" or "`" not in opening[2]):
+            fence = opening[1]
+            continue
+        heading = re.match(r" {0,3}#{1,6}[ \t]", line)
+        if heading:
+            candidate = line[heading.end():].strip(" \t")
+            without_hashes = candidate.rstrip("#")
+            if without_hashes.endswith((" ", "\t")):
+                candidate = without_hashes.rstrip(" \t")
+            if candidate:
+                title = candidate
+                break
     folded = unicodedata.normalize(
-        "NFKD", text.lower().translate(_LATIN_EXPANSIONS)).encode("ascii", "ignore").decode("ascii")
+        "NFKD", title.lower().translate(_LATIN_EXPANSIONS)).encode("ascii", "ignore").decode("ascii")
     tokens = re.findall(r"[a-z0-9]+", folded)
     content = [w for w in tokens if w not in _SLUG_STOPWORDS]
     words = (content if len(content) >= 2 else tokens)[:5]
@@ -217,5 +239,3 @@ def _probe(marker: Path, slug: str) -> bool:
         raise SessionUnreadableError(
             f"could not determine whether session '{slug}' exists: {e}",
             details={"slug": slug}) from e
-
-
