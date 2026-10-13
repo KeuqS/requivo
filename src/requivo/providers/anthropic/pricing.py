@@ -12,11 +12,16 @@ from requivo.usage import CallRecord
 # on the date below: an estimate, never a bill. Whoever edits it next states where and when the rate was read.
 PRICING_AS_OF = "2026-08-29"
 _PRICE_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-opus-5-5": (4.00, 20.00),
     "claude-opus-4-8": (5.00, 25.00),
+    "claude-sonnet-5-5": (2.00, 10.00),
     # The standard rate since the scheduled increase was cancelled (#254); it was carried as 3.00/15.00 for a release.
     "claude-sonnet-5": (2.00, 10.00),
     "claude-haiku-4-5": (1.00, 5.00),
 }
+# A row read after PRICING_AS_OF, with the day it was read: its calls carry that day, and a cost capture
+# priced on the table's date stays true (#767, `test_a_row_read_later_is_stamped_with_its_own_date`).
+_READ_ON: dict[str, str] = dict.fromkeys(("claude-opus-5-5", "claude-sonnet-5-5"), "2026-10-13")
 
 # Launch pricing that lapses on a known date: model → (input, output, last day inclusive). Empty
 # today and kept, so the next intro rate is a one-line edit; `test_launch_pricing_applies_until_it_lapses`
@@ -35,6 +40,11 @@ def price_per_mtok(model: str, on: date | None = None) -> tuple[float, float] | 
     return _PRICE_PER_MTOK.get(model)
 
 
+def rates_read_on(model: str) -> str:
+    """The day `model`'s row was read off the pricing page: its own date when it has one, else the table's."""
+    return _READ_ON.get(model, PRICING_AS_OF)
+
+
 def price_call(rec: CallRecord, on: date | None = None) -> CallRecord:
     """Stamp the rate this call was billed at onto the record, resolved when the call is filed, not
     when the total is rendered (#167, `test_a_call_is_priced_at_the_rate_in_force_when_it_was_made`).
@@ -43,5 +53,5 @@ def price_call(rec: CallRecord, on: date | None = None) -> CallRecord:
     rate = price_per_mtok(rec.model, on)
     if rate is not None:
         rec.rate_per_mtok = rate
-        rec.priced_as_of = PRICING_AS_OF
+        rec.priced_as_of = rates_read_on(rec.model)
     return rec
